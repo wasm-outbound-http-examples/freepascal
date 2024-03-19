@@ -1,0 +1,17 @@
+{
+    "name": "FreePascal: HTTP request from WASM",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils": {}
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "alefragnani.pascal"
+            ]
+        }
+    }
+}
