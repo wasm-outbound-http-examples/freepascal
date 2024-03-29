@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>HTTP request from WASM in FreePascal</title>
+    <script type="module"> import {
+        WASI,
+        File,
+        OpenFile,
+        ConsoleStdout
+    } from 'https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim/+esm'
+
+    let fds = [
+        new OpenFile(new File([])),
+        ConsoleStdout.lineBuffered(msg => console.log(`[WASI stdout] ${msg}`)),
+        ConsoleStdout.lineBuffered(msg => console.warn(`[WASI stderr] ${msg}`)),
+    ];
+
+    let wasm = await WebAssembly.compileStreaming(fetch("main.wasm"));
+    let w = new WASI([], [], fds);
+
+    const httpGet = function (_, str_in_struct_ptr, str_out_struct_ptr) {
+        const buffer = new Uint8Array(inst.exports.memory.buffer);
+        const strLen = buffer.at(str_in_struct_ptr);
+        const url = new TextDecoder('ascii').decode(
+            buffer.slice(str_in_struct_ptr + 1, str_in_struct_ptr + 1 + strLen),
+        );
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', url, false);
+        xhr.send();
+        let txt = xhr.responseText;
+
+        txt = txt.replaceAll(/\s+/g, ' ').substring(0, 255);
+        buffer.set((new TextEncoder('ascii')).encode(txt), str_out_struct_ptr + 1);
+
+        return 0;
+    };
+
+    let inst = await WebAssembly.instantiate(wasm, {
+        "wasi_snapshot_preview1": Object.assign(w.wasiImport, {
+            httpGet: httpGet,
+        }),
+    });
+    try {
+        w.start(inst);
+    } catch (e) {
+        console.error(e);
+    }
+    </script>
+</head>
+<body>
+<h2>HTTP Request from inside WASM using FreePascal and its ShortString</h2>
+
+<p>This example uses <a href="https://www.freepascal.org">Free Pascal</a>
+    and <a href="https://github.com/bjorn3/browser_wasi_shim">bjorn3/browser_wasi_shim</a>.</p>
+
+<p>See the output in browser developer console.</p>
+
+<h4>ShortString approach</h4>
+<p>Actual code:</p>
+<pre>
+
+function httpGet(url: ShortString; Var str_out:
+    ShortString): ShortString; external 'wasi_snapshot_preview1';
+
+var out_str : ShortString;
+
+begin
+        out_str:= DupeString( ' ' , 255 );
+
+        httpGet('https://httpbin.org/get', out_str);
+
+        writeln(out_str);
+end.
+
+</pre>
+<section>
+    <h4>Info</h4>
+    <p><em>Warning</em> This example employs XMLHTTPRequest in synchronous form. Consider making such calls only from
+        inside
+        of Web Workers to avoid UI freezes.</p>
+    <ul>
+        <li><a href="https://github.com/wasm-outbound-http-examples/freepascal/tree/main/browser-sync-xhr-shortstring/">Demo source code</a></li>
+        <li>Versions used on the moment of build:<small>
+            FreePascal <a href="https://gitlab.com/freepascal.org/fpc/source/-/tree/8132ccd4">v3.3.1 commit 8132ccd4</a>,
+            bjorn3/browser_wasi_shim: <a href="https://github.com/bjorn3/browser_wasi_shim/releases/tag/v0.2.20">v0.2.20</a>.
+        </small></li>
+    </ul>
+</section>
+<footer><small>Created for (wannabe-awesome) <a href="https://github.com/vasilev/HTTP-request-from-inside-WASM">list</a></small>
+</footer>
+</body>
+</html>
